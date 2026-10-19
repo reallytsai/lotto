@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lucky Drink Lotto</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { fredoka: ['Fredoka', 'sans-serif'] },
+          boxShadow: {
+            'bubbly': '0 6px 0px rgba(0, 0, 0, 0.15)',
+            'bubbly-active': '0 2px 0px rgba(0, 0, 0, 0.2)',
+            'cage-glow': 'inset 0 0 25px rgba(255, 255, 255, 0.75)'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Fredoka', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    @keyframes drum-rotate-cw { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    @keyframes drum-rotate-ccw { 0% { transform: rotate(0deg); } 100% { transform: rotate(-360deg); } }
+    .spinning-cw { animation: drum-rotate-cw 0.35s linear infinite; }
+    .spinning-ccw { animation: drum-rotate-ccw 0.35s linear infinite; }
+
+    @keyframes reveal-bounce {
+      0% { transform: scale(0.3) translateY(30px); opacity: 0; }
+      70% { transform: scale(1.15) translateY(-4px); opacity: 1; }
+      100% { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    .animate-reveal { animation: reveal-bounce 0.45s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards; }
+
+    @keyframes dice-tumble {
+      0% { transform: rotate(0deg) scale(0.9); }
+      50% { transform: rotate(180deg) scale(1.1); }
+      100% { transform: rotate(360deg) scale(1); }
+    }
+    .rolling-dice { animation: dice-tumble 0.2s linear infinite; }
+
+    #confettiCanvas {
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-100 min-h-screen text-slate-800 flex flex-col justify-between">
+  <canvas id="confettiCanvas"></canvas>
+
+  <!-- TOP HEADER -->
+  <header class="w-full bg-white/95 border-b-4 border-amber-300 shadow-sm px-4 py-2.5 sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <span class="text-3xl">🎰</span>
+        <h1 class="text-xl md:text-2xl font-black text-amber-600 uppercase tracking-wide">
+          Lucky Drink Lotto
+        </h1>
+        <div class="bg-amber-100 text-amber-900 border border-amber-300 font-black px-2.5 py-0.5 rounded-full text-xs ml-2">
+          Round <span id="roundBadge" class="text-amber-600 font-black text-sm">1</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="soundToggleBtn" onclick="toggleMute()" class="w-9 h-9 rounded-xl bg-amber-100 hover:bg-amber-200 border border-amber-300 flex items-center justify-center text-base transition active:scale-95" title="Toggle Sound">
+          🔊
+        </button>
+        <button onclick="openWordPoolModal()" class="px-3 py-1.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-black text-xs transition active:scale-95 flex items-center gap-1">
+          <span>⚙️</span> Words
+        </button>
+        <button id="headerResetBtn" onclick="forceResetGame(true)" class="px-3.5 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-black text-xs border border-rose-400 shadow-sm active:scale-95 transition flex items-center gap-1">
+          <span>🔄</span> Reset
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN STAGE -->
+  <main class="max-w-6xl w-full mx-auto px-4 py-4 flex-1 flex flex-col gap-4">
+
+    <!-- COMPACT CHANT BANNER -->
+    <div class="bg-white/95 rounded-2xl p-3 border-2 border-amber-300 shadow-sm flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5">
+        <span class="text-2xl">📣</span>
+        <div>
+          <span id="promptStepBadge" class="text-[11px] font-black uppercase text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md">
+            Step 1
+          </span>
+          <p id="promptMainText" class="text-base md:text-lg font-black text-slate-800 inline-block ml-2">
+            "What do you like?"
+          </p>
+        </div>
+      </div>
+      <button onclick="readActivePrompt()" class="px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 font-black text-xs border border-amber-300 transition active:scale-95 flex items-center gap-1">
+        <span>📢</span> Listen
+      </button>
+    </div>
+
+    <!-- TWIN LOTTERY DRUMS -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+      <!-- DRUM 1: DRINKS -->
+      <div class="bg-white/95 rounded-3xl p-4 md:p-5 border-4 border-pink-300 shadow-bubbly flex flex-col justify-between">
+        <div class="flex items-center justify-between border-b border-pink-100 pb-2 mb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-pink-500 text-white font-black flex items-center justify-center text-xs">1</span>
+            <h2 class="text-lg font-black text-pink-600 uppercase">Drinks</h2>
+          </div>
+          <button onclick="resetDrum1Only()" class="text-xs text-pink-500 hover:text-pink-700 font-bold underline">
+            Clear
+          </button>
+        </div>
+
+        <div class="flex flex-col items-center justify-center my-1">
+          <div class="relative w-48 h-48 sm:w-52 sm:h-52 rounded-full border-8 border-dashed border-pink-300 bg-gradient-to-br from-pink-50 to-pink-100 shadow-cage-glow flex items-center justify-center overflow-hidden">
+            <div id="drinkCageInner" class="w-full h-full relative"></div>
+            <div class="absolute w-10 h-10 rounded-full bg-pink-500 border-2 border-white flex items-center justify-center text-white text-base shadow z-10">
+              🥤
+            </div>
+          </div>
+        </div>
+
+        <!-- Revealed Drink -->
+        <div class="my-2 bg-pink-50 rounded-2xl border-2 border-pink-200 p-3 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div id="revealedDrinkIcon" class="w-12 h-12 rounded-xl bg-white border border-pink-200 flex items-center justify-center text-2xl shadow-sm">
+              ❓
+            </div>
+            <div>
+              <span class="text-[10px] font-black uppercase text-pink-500 block">Drawn Drink</span>
+              <p id="revealedDrinkTitle" class="text-base font-black text-slate-800 capitalize">
+                Waiting...
+              </p>
+            </div>
+          </div>
+          <button id="drinkAudioBtn" onclick="speakDrinkAnswer()" class="hidden px-2.5 py-1.5 rounded-lg bg-pink-500 text-white font-black text-xs active:scale-95 transition">
+            🔊
+          </button>
+        </div>
+
+        <button id="spinDrinkBtn" onclick="triggerSpinDrink()" class="w-full py-3 rounded-2xl bg-pink-500 hover:bg-pink-600 text-white font-black text-base shadow-bubbly active:translate-y-0.5 transition">
+          Spin Drink
+        </button>
+      </div>
+
+      <!-- DRUM 2: FRUIT & QUANTITY -->
+      <div class="bg-white/95 rounded-3xl p-4 md:p-5 border-4 border-emerald-300 shadow-bubbly flex flex-col justify-between">
+        <div class="flex items-center justify-between border-b border-emerald-100 pb-2 mb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-emerald-500 text-white font-black flex items-center justify-center text-xs">2</span>
+            <h2 class="text-lg font-black text-emerald-600 uppercase">Fruit &amp; Dice</h2>
+          </div>
+          <button onclick="resetDrum2Only()" class="text-xs text-emerald-600 hover:text-emerald-800 font-bold underline">
+            Clear
+          </button>
+        </div>
+
+        <div class="flex flex-col items-center justify-center my-1">
+          <div class="relative w-48 h-48 sm:w-52 sm:h-52 rounded-full border-8 border-dashed border-emerald-300 bg-gradient-to-br from-emerald-50 to-emerald-100 shadow-cage-glow flex items-center justify-center overflow-hidden">
+            <div id="fruitCageInner" class="w-full h-full relative"></div>
+            <div class="absolute w-10 h-10 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-white text-base shadow z-10">
+              🍎
+            </div>
+          </div>
+        </div>
+
+        <!-- Revealed Fruit & Dice -->
+        <div class="my-2 bg-emerald-50 rounded-2xl border-2 border-emerald-200 p-3 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div id="revealedFruitIcon" class="w-12 h-12 rounded-xl bg-white border border-emerald-200 flex items-center justify-center text-2xl shadow-sm">
+              ❓
+            </div>
+            <div>
+              <span class="text-[10px] font-black uppercase text-emerald-600 block">Drawn Fruit</span>
+              <p id="revealedFruitTitle" class="text-base font-black text-slate-800 capitalize">
+                Waiting...
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <div id="diceWidget" class="w-12 h-12 rounded-xl bg-white border-2 border-emerald-400 flex items-center justify-center shadow-sm">
+              <span id="revealedDiceNumber" class="text-2xl font-black text-emerald-600">?</span>
+            </div>
+            <button id="fruitAudioBtn" onclick="speakFruitAnswer()" class="hidden px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white font-black text-xs active:scale-95 transition">
+              🔊
+            </button>
+          </div>
+        </div>
+
+        <button id="spinFruitBtn" onclick="triggerSpinFruit()" class="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-base shadow-bubbly active:translate-y-0.5 transition">
+          Spin Fruit &amp; Dice
+        </button>
+      </div>
+
+    </div>
+
+    <!-- MASTER CONTROLS -->
+    <div class="flex gap-3">
+      <button id="spinAllBtn" onclick="triggerSpinAllSequence()" class="flex-1 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-base shadow-bubbly active:translate-y-0.5 transition flex items-center justify-center gap-2">
+        <span>⚡</span> Spin Both
+      </button>
+      <button id="panelResetBtn" onclick="forceResetGame(true)" class="flex-1 py-3 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white font-black text-base shadow-bubbly active:translate-y-0.5 transition flex items-center justify-center gap-2">
+        <span>🔄</span> New Round
+      </button>
+    </div>
+
+    <!-- HISTORY TABLE -->
+    <section class="bg-white/95 rounded-2xl p-4 border border-amber-200 shadow-sm">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-sm font-black text-slate-700 uppercase">Draw History</h3>
+        <button onclick="clearHistoryLog()" class="text-xs text-rose-500 hover:text-rose-700 font-bold underline">
+          Clear
+        </button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs font-bold">
+          <thead>
+            <tr class="border-b border-amber-200 text-amber-800">
+              <th class="py-1.5 px-2">Round</th>
+              <th class="py-1.5 px-2">Drink</th>
+              <th class="py-1.5 px-2">Fruit &amp; Quantity</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableContent">
+            <tr id="emptyHistoryRow" class="text-slate-400 italic">
+              <td colspan="3" class="py-3 text-center">No draws yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- WORD POOL MANAGER MODAL -->
+  <div id="wordPoolModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-5 border-4 border-indigo-300 shadow-2xl space-y-3 max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between border-b pb-2 flex-shrink-0">
+        <h3 class="text-lg font-black text-indigo-700">Word Pool</h3>
+        <button onclick="closeWordPoolModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-sm">
+          ✕
+        </button>
+      </div>
+
+      <div id="modalNoticeBox" class="hidden px-3 py-1.5 bg-amber-50 border border-amber-300 rounded-lg text-xs font-bold text-amber-800 flex items-center justify-between">
+        <span id="modalNoticeMsg"></span>
+        <button onclick="document.getElementById('modalNoticeBox').classList.add('hidden')" class="font-bold ml-2">✕</button>
+      </div>
+
+      <div class="flex border-b border-slate-200 gap-2 flex-shrink-0">
+        <button id="tabDrinkBtn" onclick="switchWordPoolTab('drinks')" class="px-3 py-1.5 font-black text-xs border-b-2 border-pink-500 text-pink-600">
+          Drinks (<span id="tabDrinkCount">0</span>)
+        </button>
+        <button id="tabFruitBtn" onclick="switchWordPoolTab('fruits')" class="px-3 py-1.5 font-black text-xs border-b-2 border-transparent text-slate-400 hover:text-emerald-600">
+          Fruits (<span id="tabFruitCount">0</span>)
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto space-y-3 pr-1">
+        <!-- DRINKS -->
+        <div id="panelDrinksPool" class="space-y-3">
+          <div class="flex gap-2">
+            <input id="newDrinkNameInput" type="text" placeholder="Drink name" class="flex-1 px-3 py-1.5 rounded-xl border text-xs font-bold text-slate-800" />
+            <input id="newDrinkEmojiInput" type="text" placeholder="🥤" maxlength="4" class="w-12 px-2 py-1.5 rounded-xl border text-xs font-bold text-center" />
+            <button onclick="addNewDrinkFromInput()" class="px-3 py-1.5 bg-pink-500 text-white font-black text-xs rounded-xl">
+              Add
+            </button>
+          </div>
+          <div id="drinkListContainer" class="space-y-1.5"></div>
+          <button onclick="restoreDefaultDrinks()" class="text-[11px] text-rose-500 hover:text-rose-700 underline font-bold">
+            Restore Defaults
+          </button>
+        </div>
+
+        <!-- FRUITS -->
+        <div id="panelFruitsPool" class="space-y-3 hidden">
+          <div class="grid grid-cols-3 gap-1.5">
+            <input id="newFruitSingularInput" type="text" placeholder="Singular" class="px-2 py-1.5 rounded-xl border text-xs font-bold" oninput="autoSuggestPlural()" />
+            <input id="newFruitPluralInput" type="text" placeholder="Plural" class="px-2 py-1.5 rounded-xl border text-xs font-bold" />
+            <div class="flex gap-1">
+              <input id="newFruitEmojiInput" type="text" placeholder="🍎" maxlength="4" class="w-10 px-1 py-1.5 rounded-xl border text-xs text-center" />
+              <button onclick="addNewFruitFromInput()" class="flex-1 px-2 py-1.5 bg-emerald-600 text-white font-black text-xs rounded-xl">
+                Add
+              </button>
+            </div>
+          </div>
+          <div id="fruitListContainer" class="space-y-1.5"></div>
+          <button onclick="restoreDefaultFruits()" class="text-[11px] text-rose-500 hover:text-rose-700 underline font-bold">
+            Restore Defaults
+          </button>
+        </div>
+      </div>
+
+      <div class="pt-2 border-t border-slate-200 flex justify-end flex-shrink-0">
+        <button onclick="closeWordPoolModal()" class="px-4 py-2 bg-indigo-600 text-white font-black text-xs rounded-xl">
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULT_DRINKS = [
+      { id: 'hot_chocolate', name: 'hot chocolate', emoji: '☕', color: '#92400E' },
+      { id: 'lemonade', name: 'lemonade', emoji: '🍋', color: '#EAB308' },
+      { id: 'cola', name: 'cola', emoji: '🥤', color: '#DC2626' },
+      { id: 'tea', name: 'tea', emoji: '🍵', color: '#16A34A' },
+      { id: 'coffee', name: 'coffee', emoji: '☕', color: '#78350F' },
+      { id: 'bubble_tea', name: 'bubble tea', emoji: '🧋', color: '#D97706' },
+      { id: 'soy_milk', name: 'soy milk', emoji: '🥛', color: '#0284C7' }
+    ];
+
+    const DEFAULT_FRUITS = [
+      { id: 'apple', singular: 'apple', plural: 'apples', emoji: '🍎', color: '#EF4444' },
+      { id: 'banana', singular: 'banana', plural: 'bananas', emoji: '🍌', color: '#FACC15' },
+      { id: 'orange', singular: 'orange', plural: 'oranges', emoji: '🍊', color: '#FB923C' },
+      { id: 'guava', singular: 'guava', plural: 'guavas', emoji: '🍈', color: '#84CC16' },
+      { id: 'pineapple', singular: 'pineapple', plural: 'pineapples', emoji: '🍍', color: '#EAB308' },
+      { id: 'grape', singular: 'grape', plural: 'grapes', emoji: '🍇', color: '#9333EA' }
+    ];
+
+    const STORAGE_KEY_DRINKS = 'lucky_drink_lotto_drinks_v2';
+    const STORAGE_KEY_FRUITS = 'lucky_drink_lotto_fruits_v2';
+
+    let DRINKS = loadStoredDrinks();
+    let FRUITS = loadStoredFruits();
+
+    function loadStoredDrinks() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY_DRINKS);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length >= 2) return parsed;
+        }
+      } catch (e) {}
+      return [...DEFAULT_DRINKS];
+    }
+
+    function loadStoredFruits() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY_FRUITS);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length >= 2) return parsed;
+        }
+      } catch (e) {}
+      return [...DEFAULT_FRUITS];
+    }
+
+    function saveCustomWordPool() {
+      try {
+        localStorage.setItem(STORAGE_KEY_DRINKS, JSON.stringify(DRINKS));
+        localStorage.setItem(STORAGE_KEY_FRUITS, JSON.stringify(FRUITS));
+      } catch (e) {}
+    }
+
+    let currentRound = 1;
+    let isSpinningDrink = false;
+    let isSpinningFruit = false;
+    let isSequenceRunning = false;
+    let isMuted = false;
+
+    let drawnDrink = null;
+    let drawnFruit = null;
+    let drawnQuantity = null;
+    let activeChantPhrase = "What do you like?";
+
+    let drinkTickInterval = null;
+    let fruitTickInterval = null;
+    let drinkCompleteTimeout = null;
+    let fruitCompleteTimeout = null;
+    let sequenceStepTimeout = null;
+
+    let audioContext = null;
+    function getAudioContext() {
+      if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioContext.state === 'suspended') audioContext.resume();
+      return audioContext;
+    }
+
+    function playTickSound() {
+      if (isMuted) return;
+      try {
+        const ctx = getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(260 + Math.random() * 200, ctx.currentTime);
+        gain.gain.setValueAtTime(0.06, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.04);
+      } catch (err) {}
+    }
+
+    function playPopSound() {
+      if (isMuted) return;
+      try {
+        const ctx = getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(380, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(750, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.18, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.1);
+      } catch (err) {}
+    }
+
+    function playFanfareSound() {
+      if (isMuted) return;
+      try {
+        const ctx = getAudioContext();
+        [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.value = freq;
+          const st = ctx.currentTime + idx * 0.06;
+          gain.gain.setValueAtTime(0, st);
+          gain.gain.linearRampToValueAtTime(0.15, st + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, st + 0.45);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(st);
+          osc.stop(st + 0.5);
+        });
+      } catch (err) {}
+    }
+
+    function toggleMute() {
+      isMuted = !isMuted;
+      document.getElementById('soundToggleBtn').innerText = isMuted ? '🔇' : '🔊';
+      if (isMuted && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+    }
+
+    function speakSentence(text, onEnd) {
+      if (!('speechSynthesis' in window) || isMuted) {
+        if (onEnd) onEnd();
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-US';
+      u.rate = 0.9;
+      if (onEnd) { u.onend = onEnd; u.onerror = onEnd; }
+      window.speechSynthesis.speak(u);
+    }
+
+    function speakDrinkAnswer() {
+      if (drawnDrink) speakSentence(`I like ${drawnDrink.name}.`);
+    }
+
+    function speakFruitAnswer() {
+      if (drawnFruit && drawnQuantity) {
+        const noun = drawnQuantity === 1 ? drawnFruit.singular : drawnFruit.plural;
+        speakSentence(`I need ${drawnQuantity} ${noun}.`);
+      }
+    }
+
+    function readActivePrompt() {
+      speakSentence(activeChantPhrase);
+    }
+
+    function safeSetText(id, text) {
+      const el = document.getElementById(id);
+      if (el) el.innerText = text;
+    }
+
+    function renderDrumBalls(cageId, items) {
+      const cage = document.getElementById(cageId);
+      if (!cage) return;
+      cage.innerHTML = '';
+      const total = items.length;
+      const radius = total > 8 ? 62 : 55;
+      const ballSize = total > 10 ? 32 : 38;
+
+      items.forEach((item, idx) => {
+        const ball = document.createElement('div');
+        ball.className = 'absolute rounded-full flex items-center justify-center shadow border border-white font-bold transition-all';
+        ball.style.width = `${ballSize}px`;
+        ball.style.height = `${ballSize}px`;
+        ball.style.fontSize = total > 10 ? '12px' : '15px';
+        ball.style.backgroundColor = item.color || '#F59E0B';
+        ball.style.color = '#FFFFFF';
+
+        const angle = (idx / total) * 2 * Math.PI;
+        const centerX = 96;
+        const centerY = 96;
+        const posX = centerX + Math.cos(angle) * radius - (ballSize / 2);
+        const posY = centerY + Math.sin(angle) * radius - (ballSize / 2);
+
+        ball.style.left = `${posX}px`;
+        ball.style.top = `${posY}px`;
+        ball.innerHTML = `<span>${item.emoji}</span>`;
+        cage.appendChild(ball);
+      });
+    }
+
+    function forceResetGame(advanceRound = true) {
+      if (drinkTickInterval) { clearInterval(drinkTickInterval); drinkTickInterval = null; }
+      if (fruitTickInterval) { clearInterval(fruitTickInterval); fruitTickInterval = null; }
+      if (drinkCompleteTimeout) { clearTimeout(drinkCompleteTimeout); drinkCompleteTimeout = null; }
+      if (fruitCompleteTimeout) { clearTimeout(fruitCompleteTimeout); fruitCompleteTimeout = null; }
+      if (sequenceStepTimeout) { clearTimeout(sequenceStepTimeout); sequenceStepTimeout = null; }
+
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+
+      isSpinningDrink = false;
+      isSpinningFruit = false;
+      isSequenceRunning = false;
+
+      if (advanceRound && (drawnDrink !== null || drawnFruit !== null)) {
+        currentRound++;
+      }
+      safeSetText('roundBadge', currentRound);
+
+      drawnDrink = null;
+      drawnFruit = null;
+      drawnQuantity = null;
+
+      const drinkCage = document.getElementById('drinkCageInner');
+      if (drinkCage) drinkCage.classList.remove('spinning-cw');
+      safeSetText('revealedDrinkIcon', '❓');
+      safeSetText('revealedDrinkTitle', 'Waiting...');
+      const drinkAudioBtn = document.getElementById('drinkAudioBtn');
+      if (drinkAudioBtn) drinkAudioBtn.classList.add('hidden');
+      renderDrumBalls('drinkCageInner', DRINKS);
+
+      const fruitCage = document.getElementById('fruitCageInner');
+      if (fruitCage) fruitCage.classList.remove('spinning-ccw');
+      const diceWidget = document.getElementById('diceWidget');
+      if (diceWidget) diceWidget.classList.remove('rolling-dice');
+      safeSetText('revealedFruitIcon', '❓');
+      safeSetText('revealedFruitTitle', 'Waiting...');
+      safeSetText('revealedDiceNumber', '?');
+      const fruitAudioBtn = document.getElementById('fruitAudioBtn');
+      if (fruitAudioBtn) fruitAudioBtn.classList.add('hidden');
+      renderDrumBalls('fruitCageInner', FRUITS);
+
+      ['spinDrinkBtn', 'spinFruitBtn', 'spinAllBtn'].forEach(btnId => {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+          btn.disabled = false;
+          btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+      });
+
+      updateChantBanner('Step 1', '"What do you like?"', 'What do you like?');
+      clearConfetti();
+    }
+
+    function resetDrum1Only() {
+      if (isSpinningDrink) return;
+      drawnDrink = null;
+      safeSetText('revealedDrinkIcon', '❓');
+      safeSetText('revealedDrinkTitle', 'Waiting...');
+      const btn = document.getElementById('drinkAudioBtn');
+      if (btn) btn.classList.add('hidden');
+      renderDrumBalls('drinkCageInner', DRINKS);
+      updateChantBanner('Step 1', '"What do you like?"', 'What do you like?');
+    }
+
+    function resetDrum2Only() {
+      if (isSpinningFruit) return;
+      drawnFruit = null;
+      drawnQuantity = null;
+      safeSetText('revealedFruitIcon', '❓');
+      safeSetText('revealedFruitTitle', 'Waiting...');
+      safeSetText('revealedDiceNumber', '?');
+      const btn = document.getElementById('fruitAudioBtn');
+      if (btn) btn.classList.add('hidden');
+      renderDrumBalls('fruitCageInner', FRUITS);
+      updateChantBanner('Step 2', '"How many do you need?"', 'How many do you need?');
+    }
+
+    function updateChantBanner(badge, text, phrase) {
+      safeSetText('promptStepBadge', badge);
+      safeSetText('promptMainText', text);
+      activeChantPhrase = phrase;
+    }
+
+    function triggerSpinDrink(callback) {
+      if (isSpinningDrink) return;
+      isSpinningDrink = true;
+
+      const cage = document.getElementById('drinkCageInner');
+      const spinBtn = document.getElementById('spinDrinkBtn');
+      const balls = cage ? cage.querySelectorAll('div') : [];
+
+      if (spinBtn) {
+        spinBtn.disabled = true;
+        spinBtn.classList.add('opacity-50', 'cursor-not-allowed');
+      }
+      if (cage) cage.classList.add('spinning-cw');
+
+      updateChantBanner('Rolling', '"What do you like?"', 'What do you like?');
+      speakSentence('What do you like?');
+
+      drinkTickInterval = setInterval(() => {
+        playTickSound();
+        balls.forEach(b => {
+          const rx = 96 + (Math.random() - 0.5) * 80 - 16;
+          const ry = 96 + (Math.random() - 0.5) * 80 - 16;
+          b.style.left = `${rx}px`;
+          b.style.top = `${ry}px`;
+        });
+      }, 90);
+
+      drinkCompleteTimeout = setTimeout(() => {
+        clearInterval(drinkTickInterval);
+        drinkTickInterval = null;
+        if (cage) cage.classList.remove('spinning-cw');
+
+        const pick = DRINKS[Math.floor(Math.random() * DRINKS.length)];
+        drawnDrink = pick;
+
+        playPopSound();
+        const icon = document.getElementById('revealedDrinkIcon');
+        const title = document.getElementById('revealedDrinkTitle');
+        const btn = document.getElementById('drinkAudioBtn');
+
+        if (icon) {
+          icon.innerText = pick.emoji;
+          icon.classList.remove('animate-reveal');
+          void icon.offsetWidth;
+          icon.classList.add('animate-reveal');
+        }
+        if (title) title.innerText = pick.name;
+        if (btn) btn.classList.remove('hidden');
+
+        updateChantBanner('Step 1 Ready', `"I like ${pick.name}."`, `I like ${pick.name}.`);
+
+        speakSentence(`I like ${pick.name}.`, () => {
+          isSpinningDrink = false;
+          if (spinBtn) {
+            spinBtn.disabled = false;
+            spinBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+          }
+          if (callback) callback();
+        });
+      }, 1500);
+    }
+
+    function triggerSpinFruit(callback) {
+      if (isSpinningFruit) return;
+      isSpinningFruit = true;
+
+      const cage = document.getElementById('fruitCageInner');
+      const spinBtn = document.getElementById('spinFruitBtn');
+      const diceWidget = document.getElementById('diceWidget');
+      const diceNumber = document.getElementById('revealedDiceNumber');
+      const balls = cage ? cage.querySelectorAll('div') : [];
+
+      if (spinBtn) {
+        spinBtn.disabled = true;
+        spinBtn.classList.add('opacity-50', 'cursor-not-allowed');
+      }
+      if (cage) cage.classList.add('spinning-ccw');
+      if (diceWidget) diceWidget.classList.add('rolling-dice');
+
+      updateChantBanner('Rolling', '"How many do you need?"', 'How many do you need?');
+
+      fruitTickInterval = setInterval(() => {
+        playTickSound();
+        if (diceNumber) diceNumber.innerText = Math.floor(Math.random() * 6) + 1;
+        balls.forEach(b => {
+          const rx = 96 + (Math.random() - 0.5) * 80 - 16;
+          const ry = 96 + (Math.random() - 0.5) * 80 - 16;
+          b.style.left = `${rx}px`;
+          b.style.top = `${ry}px`;
+        });
+      }, 90);
+
+      fruitCompleteTimeout = setTimeout(() => {
+        clearInterval(fruitTickInterval);
+        fruitTickInterval = null;
+        if (cage) cage.classList.remove('spinning-ccw');
+        if (diceWidget) diceWidget.classList.remove('rolling-dice');
+
+        const pickFruit = FRUITS[Math.floor(Math.random() * FRUITS.length)];
+        const pickQty = Math.floor(Math.random() * 6) + 1;
+        drawnFruit = pickFruit;
+        drawnQuantity = pickQty;
+
+        playPopSound();
+        const noun = pickQty === 1 ? pickFruit.singular : pickFruit.plural;
+
+        const icon = document.getElementById('revealedFruitIcon');
+        const title = document.getElementById('revealedFruitTitle');
+        const dice = document.getElementById('revealedDiceNumber');
+        const btn = document.getElementById('fruitAudioBtn');
+
+        if (icon) {
+          icon.innerText = pickFruit.emoji;
+          icon.classList.remove('animate-reveal');
+          void icon.offsetWidth;
+          icon.classList.add('animate-reveal');
+        }
+        if (title) title.innerText = `${pickQty} ${noun}`;
+        if (dice) dice.innerText = pickQty;
+        if (btn) btn.classList.remove('hidden');
+
+        updateChantBanner('Matched!', `"I need ${pickQty} ${noun}."`, `How many ${pickFruit.plural} do you need? I need ${pickQty} ${noun}.`);
+
+        playFanfareSound();
+        launchConfetti(50);
+
+        speakSentence(`How many ${pickFruit.plural} do you need? I need ${pickQty} ${noun}.`, () => {
+          isSpinningFruit = false;
+          if (spinBtn) {
+            spinBtn.disabled = false;
+            spinBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+          }
+          if (drawnDrink && drawnFruit) {
+            recordHistoryEntry(currentRound, drawnDrink, drawnFruit, drawnQuantity);
+          }
+          if (callback) callback();
+        });
+      }, 1600);
+    }
+
+    function triggerSpinAllSequence() {
+      if (isSpinningDrink || isSpinningFruit || isSequenceRunning) return;
+      isSequenceRunning = true;
+      const btn = document.getElementById('spinAllBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+      }
+
+      triggerSpinDrink(() => {
+        sequenceStepTimeout = setTimeout(() => {
+          triggerSpinFruit(() => {
+            isSequenceRunning = false;
+            if (btn) {
+              btn.disabled = false;
+              btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+          });
+        }, 500);
+      });
+    }
+
+    function recordHistoryEntry(round, drink, fruit, count) {
+      const tbody = document.getElementById('historyTableContent');
+      const emptyRow = document.getElementById('emptyHistoryRow');
+      if (emptyRow) tbody.innerHTML = '';
+
+      const noun = count === 1 ? fruit.singular : fruit.plural;
+      const tr = document.createElement('tr');
+      tr.className = 'border-b border-amber-100 hover:bg-amber-50 transition';
+      tr.innerHTML = `
+        <td class="py-1.5 px-2 text-amber-700 font-black">#${round}</td>
+        <td class="py-1.5 px-2 capitalize">${drink.emoji} ${drink.name}</td>
+        <td class="py-1.5 px-2 capitalize">${fruit.emoji} ${count} ${noun}</td>
+      `;
+      tbody.prepend(tr);
+    }
+
+    function clearHistoryLog() {
+      const tbody = document.getElementById('historyTableContent');
+      if (tbody) {
+        tbody.innerHTML = `
+          <tr id="emptyHistoryRow" class="text-slate-400 italic">
+            <td colspan="3" class="py-3 text-center">No draws yet.</td>
+          </tr>
+        `;
+      }
+    }
+
+    const canvas = document.getElementById('confettiCanvas');
+    const ctx = canvas.getContext('2d');
+    let confettiParticles = [];
+    let confettiAnimationId = null;
+
+    function handleResize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', handleResize);
+    handleResize();
+
+    function launchConfetti(count = 50) {
+      const colors = ['#EC4899', '#10B981', '#F59E0B', '#3B82F6', '#8B5CF6'];
+      for (let i = 0; i < count; i++) {
+        confettiParticles.push({
+          x: canvas.width * 0.5 + (Math.random() - 0.5) * 150,
+          y: canvas.height * 0.4,
+          w: Math.random() * 8 + 4,
+          h: Math.random() * 5 + 3,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          vx: (Math.random() - 0.5) * 14,
+          vy: Math.random() * -10 - 4,
+          rot: Math.random() * 360,
+          vRot: (Math.random() - 0.5) * 8,
+          gravity: 0.25,
+          alpha: 1
+        });
+      }
+      if (!confettiAnimationId) animateConfetti();
+    }
+
+    function clearConfetti() {
+      confettiParticles = [];
+      if (confettiAnimationId) {
+        cancelAnimationFrame(confettiAnimationId);
+        confettiAnimationId = null;
+      }
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function animateConfetti() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let i = confettiParticles.length - 1; i >= 0; i--) {
+        const p = confettiParticles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += p.gravity;
+        p.rot += p.vRot;
+        p.alpha -= 0.012;
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate((p.rot * Math.PI) / 180);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.max(0, p.alpha);
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+
+        if (p.alpha <= 0 || p.y > canvas.height) confettiParticles.splice(i, 1);
+      }
+      if (confettiParticles.length > 0) {
+        confettiAnimationId = requestAnimationFrame(animateConfetti);
+      } else {
+        cancelAnimationFrame(confettiAnimationId);
+        confettiAnimationId = null;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+
+    const RANDOM_PALETTE = ['#EF4444', '#F97316', '#F59E0B', '#10B981', '#06B6D4', '#3B82F6', '#8B5CF6', '#EC4899'];
+
+    function openWordPoolModal(tab = 'drinks') {
+      switchWordPoolTab(tab);
+      renderWordPoolManagerLists();
+      document.getElementById('wordPoolModal').classList.remove('hidden');
+    }
+
+    function closeWordPoolModal() {
+      document.getElementById('wordPoolModal').classList.add('hidden');
+      renderDrumBalls('drinkCageInner', DRINKS);
+      renderDrumBalls('fruitCageInner', FRUITS);
+    }
+
+    function switchWordPoolTab(tab) {
+      const tabDrinkBtn = document.getElementById('tabDrinkBtn');
+      const tabFruitBtn = document.getElementById('tabFruitBtn');
+      const panelDrinks = document.getElementById('panelDrinksPool');
+      const panelFruits = document.getElementById('panelFruitsPool');
+
+      if (tab === 'drinks') {
+        tabDrinkBtn.className = 'px-3 py-1.5 font-black text-xs border-b-2 border-pink-500 text-pink-600';
+        tabFruitBtn.className = 'px-3 py-1.5 font-black text-xs border-b-2 border-transparent text-slate-400 hover:text-emerald-600';
+        panelDrinks.classList.remove('hidden');
+        panelFruits.classList.add('hidden');
+      } else {
+        tabFruitBtn.className = 'px-3 py-1.5 font-black text-xs border-b-2 border-emerald-500 text-emerald-600';
+        tabDrinkBtn.className = 'px-3 py-1.5 font-black text-xs border-b-2 border-transparent text-slate-400 hover:text-pink-600';
+        panelFruits.classList.remove('hidden');
+        panelDrinks.classList.add('hidden');
+      }
+    }
+
+    function renderWordPoolManagerLists() {
+      safeSetText('tabDrinkCount', DRINKS.length);
+      safeSetText('tabFruitCount', FRUITS.length);
+
+      const dContainer = document.getElementById('drinkListContainer');
+      dContainer.innerHTML = '';
+      DRINKS.forEach(d => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between p-1.5 rounded-lg bg-slate-50 border text-xs';
+        row.innerHTML = `
+          <span class="capitalize font-bold text-slate-800">${d.emoji} ${d.name}</span>
+          <button onclick="deleteDrink('${d.id}')" class="text-rose-500 font-bold px-1.5 py-0.5 rounded hover:bg-rose-50" ${DRINKS.length <= 2 ? 'disabled' : ''}>
+            ✕
+          </button>
+        `;
+        dContainer.appendChild(row);
+      });
+
+      const fContainer = document.getElementById('fruitListContainer');
+      fContainer.innerHTML = '';
+      FRUITS.forEach(f => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between p-1.5 rounded-lg bg-slate-50 border text-xs';
+        row.innerHTML = `
+          <span class="capitalize font-bold text-slate-800">${f.emoji} ${f.singular} / ${f.plural}</span>
+          <button onclick="deleteFruit('${f.id}')" class="text-rose-500 font-bold px-1.5 py-0.5 rounded hover:bg-rose-50" ${FRUITS.length <= 2 ? 'disabled' : ''}>
+            ✕
+          </button>
+        `;
+        fContainer.appendChild(row);
+      });
+    }
+
+    function addNewDrinkFromInput() {
+      const nameInput = document.getElementById('newDrinkNameInput');
+      const emojiInput = document.getElementById('newDrinkEmojiInput');
+      const name = nameInput.value.trim().toLowerCase();
+      const emoji = emojiInput.value.trim() || '🥤';
+
+      if (!name || DRINKS.some(d => d.name === name)) return;
+      DRINKS.push({
+        id: 'd_' + Date.now(),
+        name,
+        emoji,
+        color: RANDOM_PALETTE[Math.floor(Math.random() * RANDOM_PALETTE.length)]
+      });
+      saveCustomWordPool();
+      nameInput.value = '';
+      emojiInput.value = '';
+      renderWordPoolManagerLists();
+    }
+
+    function deleteDrink(id) {
+      if (DRINKS.length <= 2) return;
+      DRINKS = DRINKS.filter(d => d.id !== id);
+      saveCustomWordPool();
+      renderWordPoolManagerLists();
+    }
+
+    function restoreDefaultDrinks() {
+      DRINKS = JSON.parse(JSON.stringify(DEFAULT_DRINKS));
+      saveCustomWordPool();
+      renderWordPoolManagerLists();
+    }
+
+    function autoSuggestPlural() {
+      const sin = document.getElementById('newFruitSingularInput');
+      const plu = document.getElementById('newFruitPluralInput');
+      const val = sin.value.trim().toLowerCase();
+      if (!val) { plu.value = ''; return; }
+      if (val.endsWith('y') && !/[aeiou]y$/.test(val)) plu.value = val.slice(0, -1) + 'ies';
+      else if (val.endsWith('s') || val.endsWith('x') || val.endsWith('ch') || val.endsWith('sh')) plu.value = val + 'es';
+      else plu.value = val + 's';
+    }
+
+    function addNewFruitFromInput() {
+      const sinInput = document.getElementById('newFruitSingularInput');
+      const pluInput = document.getElementById('newFruitPluralInput');
+      const emojiInput = document.getElementById('newFruitEmojiInput');
+
+      const singular = sinInput.value.trim().toLowerCase();
+      let plural = pluInput.value.trim().toLowerCase();
+      const emoji = emojiInput.value.trim() || '🍎';
+
+      if (!singular || FRUITS.some(f => f.singular === singular)) return;
+      if (!plural) plural = singular + 's';
+
+      FRUITS.push({
+        id: 'f_' + Date.now(),
+        singular,
+        plural,
+        emoji,
+        color: RANDOM_PALETTE[Math.floor(Math.random() * RANDOM_PALETTE.length)]
+      });
+      saveCustomWordPool();
+      sinInput.value = '';
+      pluInput.value = '';
+      emojiInput.value = '';
+      renderWordPoolManagerLists();
+    }
+
+    function deleteFruit(id) {
+      if (FRUITS.length <= 2) return;
+      FRUITS = FRUITS.filter(f => f.id !== id);
+      saveCustomWordPool();
+      renderWordPoolManagerLists();
+    }
+
+    function restoreDefaultFruits() {
+      FRUITS = JSON.parse(JSON.stringify(DEFAULT_FRUITS));
+      saveCustomWordPool();
+      renderWordPoolManagerLists();
+    }
+
+    window.onload = function() {
+      renderDrumBalls('drinkCageInner', DRINKS);
+      renderDrumBalls('fruitCageInner', FRUITS);
+    };
+  </script>
+</body>
+</html>
